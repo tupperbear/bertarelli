@@ -1,0 +1,346 @@
+<!doctype html>
+
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Bertarelli</title>
+    <link href='https://api.mapbox.com/mapbox-gl-js/v1.0.0/mapbox-gl.css' rel='stylesheet' />
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">
+    <link href="https://stackpath.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css" rel="stylesheet" integrity="sha384-wvfXpqpZZVQGK6TAh5PVlGOfQNHSoD2xbE+QkPxCAFlNEevoEH3Sl0sibVcOQVnN" crossorigin="anonymous">
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Helvetica Neue', Helvetica, Arial, Sans-serif;
+            font-size: 12px;
+        }
+
+        #map {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            width: 100%;
+        }
+
+        #console {
+            width: 100%;
+            bottom: 0px;
+            position: absolute;
+            z-index: 99999;
+        }
+
+        #species {
+            width: 100%;
+            top: 0;
+            position: absolute;
+            z-index: 99999;
+        }
+
+        #slider {
+            margin-top: 10px;
+        }
+
+        .btn-manta {
+            background-color: #f01eff !important;
+            border-color: #f01eff !important;
+        }
+
+        .btn-greyreef {
+            background-color: #eae600 !important;
+            border-color: #eae600 !important;
+        }
+
+        .btn-silvertip {
+            background-color: #ff8c00 !important;
+            border-color: #ff8c00 !important;
+        }
+
+        .marker {
+            background-image: url('img/boat4.svg');
+            background-size: cover;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            /*cursor: pointer;*/
+        }
+
+        .btn-block + .btn-block {
+            margin-top: 0;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="bertarelli-map">
+        <div id="species" class="text-center">
+            <div class="btn-group mt-3" role="group" aria-label="Basic example">
+                <button id="manta-toggle" type="button btn-sm" class="btn btn-secondary btn-manta">Mantas</button>
+                <button id="greyreef-toggle" type="button btn-sm" class="btn btn-secondary btn-greyreef">Gref Reef</button>
+                <button id="silvertip-toggle" type="button btn-sm" class="btn btn-secondary btn-silvertip">Silver Tip</button>
+            </div>
+        </div>
+        
+        <div id="map" style="width: 100%; height: 100%;"></div>
+        
+        <div id='console'>
+            <h3 id="active-date" class="text-center text-white mb--5"></h3>
+            <div class="card mb-5 mx-5 p-3 text-center">
+                <div class="row">
+                    <div class="col-md-2 col-lg-1">
+                        <button id="play-btn" class="btn btn-light btn-block">
+                            <i class="fa fa-play"></i>
+                        </button><button id="pause-btn" class="btn btn-light btn-block d-none">
+                            <i class="fa fa-pause"></i>
+                        </button>
+                    </div>
+                    <div class="col-md-10 col-lg-11">
+                        <input id="slider" class="form-control-range" type="range" min="0" max="14865" step="1" value="0" />
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/lodash@4.17.11/lodash.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.24.0/moment.min.js"></script>
+    <script src='https://api.mapbox.com/mapbox-gl-js/v1.0.0/mapbox-gl.js'></script>
+    <script src="./data/data.js"></script>
+
+    <script type="text/javascript">
+
+        let bertarelli = BERTARELLI_DATA;
+        let timelineTimeout = null;
+        let lineInterval = null;
+        let vesselInterval = null;
+        let vesselQueue = [];
+        let animalGeo = { "type": "FeatureCollection", "features": [] };
+        let currentIndex = 0;
+        let marker = null;
+        let playTimeline = false;
+
+        const slider = document.getElementById('slider');
+        const playBtn = document.getElementById('play-btn');
+        const pauseBtn = document.getElementById('pause-btn');
+        const mantaBtn = document.getElementById('manta-toggle');
+        const greyreefBtn = document.getElementById('greyreef-toggle');
+        const silvertipBtn = document.getElementById('silvertip-toggle');
+        const timelineTimeoutLength = 200;
+
+        // Add active flag to each actor layer
+        _.forEach(bertarelli.meta.actors, actor => actor.active = true);
+        
+        // Initialize slider
+        slider.setAttribute('min', currentIndex);
+        slider.setAttribute('max', bertarelli.meta.dayRange);
+        slider.setAttribute('step', 1);
+        
+        slider.addEventListener('change', function(e) {
+            currentIndex = parseInt(e.target.value);
+            animalGeo.features = [];
+            vesselQueue = [];
+            startTimeline();
+        });
+
+        slider.addEventListener('input', function (e) {
+            setDate(bertarelli.meta.startTime + (bertarelli.meta.timeIncrement * parseInt(e.target.value)));
+        });
+
+        slider.addEventListener('mousedown', function (e) {          
+            vesselQueue = [];
+            marker.setLngLat([0,0]);
+            stopTimeline();
+        });
+
+        // Init play button
+        playBtn.addEventListener('click', function (e) {
+            startTimeline();
+
+            console.log(map.getCenter(), map.getZoom());
+        });
+
+        pauseBtn.addEventListener('click', function (e) {
+            stopTimeline();
+        });
+
+        // Init species toggles
+        mantaBtn.addEventListener('click', function (e) {
+            bertarelli.meta.actors['m'].active = !bertarelli.meta.actors['m'].active;
+            this.classList.toggle('btn-manta');
+        });
+
+        greyreefBtn.addEventListener('click', function (e) {
+            bertarelli.meta.actors['g'].active = !bertarelli.meta.actors['g'].active;
+            this.classList.toggle('btn-greyreef');
+        });
+
+        silvertipBtn.addEventListener('click', function (e) {
+            bertarelli.meta.actors['s'].active = !bertarelli.meta.actors['s'].active;
+            this.classList.toggle('btn-silvertip');
+        });
+
+        // Initialize map
+        mapboxgl.accessToken = 'pk.eyJ1IjoidHVwcGVyYmVhciIsImEiOiJjand3bWdqcjEwN21mNDhydm0xcG1zNmozIn0.P9J4wMml9kvTRuFRgtrngA';
+        const map = new mapboxgl.Map({
+            container: 'map',
+            style: 'mapbox://styles/mapbox/outdoors-v11',
+            center: [71.9007, -5.9451],
+            zoom: 8
+        });
+
+        map.on('load', function() {
+            let bounds = new mapboxgl.LngLatBounds();
+
+            // Initialize station data sources
+            _.forEach(bertarelli.stations, (value, key) => {
+                map.addSource(key + '-source', {
+                    "type": "geojson",
+                    "data": {
+                        "type": "Point",
+                        "coordinates": value
+                    }
+                });
+
+                map.addLayer({
+                    "id": key + '-layer',
+                    "source": key + '-source',
+                    "type": "circle",
+                    "paint": {
+                        "circle-radius": 3,
+                        "circle-color": "#007cbf",
+                        "circle-opacity": 0.4
+                    }
+                });
+
+                bounds.extend(value);
+            });
+
+            map.fitBounds(bounds, {
+                padding: 20
+            });
+
+            // Add animal lines layer
+            map.addLayer({
+                'id': 'lines',
+                'type': 'line',
+                'source': {
+                    'type': 'geojson',
+                    'data': animalGeo
+                },
+                'layout': {
+                    'line-cap': 'round',
+                    'line-join': 'round'
+                },
+                'paint': {
+                    'line-opacity': ['get', 'opacity'],
+                    'line-color': ['get', 'color'],
+                    'line-width': 3
+                }
+            });
+
+            let markerEl = document.createElement('div');
+            markerEl.className = 'marker';
+            marker = new mapboxgl.Marker(markerEl);
+            marker.setLngLat([0, 0]);
+            marker.addTo(map);
+
+            lineInterval = setInterval(animateLines, 100);
+            vesselInterval = setInterval(moveVessel, timelineTimeoutLength/12);
+        });
+
+        function timeline () {
+
+            // Update date displayed
+            setDate(bertarelli.meta.startTime + (bertarelli.meta.timeIncrement * currentIndex));
+
+            // Draw all lines on this day
+            _.forEach(bertarelli.timeline[currentIndex], (actors, key) => {
+                const speciesAbbr = key.split('_')[0];
+                const color = bertarelli.meta.actors[speciesAbbr].color;
+                
+                actors.forEach(a => {
+                    if (bertarelli.meta.actors[speciesAbbr].active) {
+                        if (speciesAbbr === 'v') {
+                            // We handle the vessel differently than the animals
+                            vesselQueue.push(a);
+                        } else {
+                            addLine(
+                                bertarelli.stations[a[0]],
+                                bertarelli.stations[a[1]],
+                                color
+                            );
+                        }
+                    }
+                });
+            });
+
+            // Update slider value
+            slider.value = currentIndex;
+
+            // Increment index
+            currentIndex++;
+            
+            if (playTimeline && currentIndex <= bertarelli.meta.dayRange) {
+                timelineTimeout = setTimeout(() => {
+                    timeline();
+                }, timelineTimeoutLength);
+            }
+        }
+
+        function animateLines () {
+            // Fade the lines
+            animalGeo.features.forEach(line => line.properties.opacity -= 0.1);
+
+            // Remove lines which are no longer visible
+            animalGeo.features = animalGeo.features.filter(line => line.properties.opacity > 0.0);
+
+            // Update the line layer data source
+            map.getSource('lines').setData(animalGeo);
+        }
+
+        function moveVessel () {
+            if (vesselQueue.length) {
+                marker.setLngLat(vesselQueue.shift());
+            }
+        }
+
+        function addLine (from, to, color) {
+            animalGeo.features.push({
+                "type": "Feature",
+                "properties": {
+                    "color": color,
+                    "opacity": 1
+                },
+                "geometry": {
+                    "type": "LineString",
+                    "coordinates": [from, to]
+                }
+            });
+
+            map.getSource('lines').setData(animalGeo);
+        }
+
+        function setDate(time) {
+            document.getElementById('active-date').innerText = moment(time).format('DD/MM/YYYY');
+        }
+
+        function stopTimeline () {
+            // playBtn.style.display = "block";
+            // pauseBtn.style.display = "none";
+            playBtn.classList.toggle('d-none');
+            pauseBtn.classList.toggle('d-none');
+            playTimeline = false;
+            vesselQueue = [];
+            animalGeo.features = [];
+            clearInterval(lineInterval);
+        }
+
+        function startTimeline () {
+            playBtn.classList.toggle('d-none');
+            pauseBtn.classList.toggle('d-none');
+            playTimeline = true;
+            timeline();
+            lineInterval = setInterval(animateLines, 100);
+        }
+    </script>
+</body>
+</html>
