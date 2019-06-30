@@ -55,6 +55,15 @@
             border-color: #ff8c00 !important;
         }
 
+        .btn-vessel {
+            background-color: #fff !important;
+            border-color: #fff !important;
+        }
+
+        .btn.btn-vessel {
+            color: #6c757d;
+        }
+
         .marker {
             background-image: url('img/boat4.svg');
             background-size: cover;
@@ -74,9 +83,10 @@
     <div id="bertarelli-map">
         <div id="species" class="text-center">
             <div class="btn-group mt-3" role="group" aria-label="Basic example">
-                <button id="manta-toggle" type="button btn-sm" class="btn btn-secondary btn-manta">Mantas</button>
-                <button id="greyreef-toggle" type="button btn-sm" class="btn btn-secondary btn-greyreef">Gref Reef</button>
-                <button id="silvertip-toggle" type="button btn-sm" class="btn btn-secondary btn-silvertip">Silver Tip</button>
+                <button id="manta-toggle" type="button" class="btn btn-secondary btn-manta">Mantas</button>
+                <button id="greyreef-toggle" type="button" class="btn btn-secondary btn-greyreef">Gref Reef</button>
+                <button id="silvertip-toggle" type="button" class="btn btn-secondary btn-silvertip">Silver Tip</button>
+                <button id="vessel-toggle" type="button" class="btn btn-secondary btn-vessel">Vessel</button>
             </div>
         </div>
         
@@ -124,6 +134,7 @@
         const mantaBtn = document.getElementById('manta-toggle');
         const greyreefBtn = document.getElementById('greyreef-toggle');
         const silvertipBtn = document.getElementById('silvertip-toggle');
+        const vesselBtn = document.getElementById('vessel-toggle');
         const timelineTimeoutLength = 200;
 
         // Add active flag to each actor layer
@@ -154,8 +165,6 @@
         // Init play button
         playBtn.addEventListener('click', function (e) {
             startTimeline();
-
-            console.log(map.getCenter(), map.getZoom());
         });
 
         pauseBtn.addEventListener('click', function (e) {
@@ -178,11 +187,17 @@
             this.classList.toggle('btn-silvertip');
         });
 
+        vesselBtn.addEventListener('click', function (e) {
+            bertarelli.meta.actors['v'].active = !bertarelli.meta.actors['v'].active;
+            bertarelli.meta.actors['v'].active ? marker.addTo(map) : marker.remove();
+            this.classList.toggle('btn-vessel');
+        });
+
         // Initialize map
         mapboxgl.accessToken = 'pk.eyJ1IjoidHVwcGVyYmVhciIsImEiOiJjand3bWdqcjEwN21mNDhydm0xcG1zNmozIn0.P9J4wMml9kvTRuFRgtrngA';
         const map = new mapboxgl.Map({
             container: 'map',
-            style: 'mapbox://styles/mapbox/outdoors-v11',
+            style: 'mapbox://styles/mapbox/satellite-v9',
             center: [71.9007, -5.9451],
             zoom: 8
         });
@@ -244,7 +259,7 @@
             marker.addTo(map);
 
             lineInterval = setInterval(animateLines, 100);
-            vesselInterval = setInterval(moveVessel, timelineTimeoutLength/12);
+            vesselInterval = setInterval(moveVessel, timelineTimeoutLength/24);
         });
 
         function timeline () {
@@ -333,10 +348,9 @@
         }
 
         function stopTimeline () {
-            // playBtn.style.display = "block";
-            // pauseBtn.style.display = "none";
-            playBtn.classList.toggle('d-none');
-            pauseBtn.classList.toggle('d-none');
+            pauseBtn.classList.add('d-none');
+            playBtn.classList.remove('d-none');
+            
             playTimeline = false;
             vesselQueue = [];
             animalGeo.features = [];
@@ -344,8 +358,9 @@
         }
 
         function startTimeline () {
-            playBtn.classList.toggle('d-none');
-            pauseBtn.classList.toggle('d-none');
+            playBtn.classList.add('d-none');
+            pauseBtn.classList.remove('d-none');
+
             playTimeline = true;
             timeline();
             lineInterval = setInterval(animateLines, 100);
