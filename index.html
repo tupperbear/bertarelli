@@ -260,7 +260,6 @@
                 actors.forEach(a => {
                     if (bertarelli.meta.actors[speciesAbbr].active) {
                         if (speciesAbbr === 'v') {
-                            // We handle the vessel differently than the animals
                             vesselQueue.push(a);
                         } else {
                             addLine(
@@ -299,7 +298,17 @@
 
         function moveVessel () {
             if (vesselQueue.length) {
-                marker.setLngLat(vesselQueue.shift());
+                const nextPos = vesselQueue.shift();
+                const currentPos = marker.getLngLat();
+                marker.setLngLat(nextPos);
+
+
+
+                addLine(
+                    currentPos.toArray(), 
+                    nextPos, 
+                    bertarelli.meta.actors['v'].color
+                );
             }
         }
 

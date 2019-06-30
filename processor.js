@@ -16,7 +16,7 @@ const processAllData = async () => {
         startTime: 0,
         endTime: 0,
         dayRange: 0,
-        timeIncrement: 60 * 60 * 24 * 1000, // 1 day
+        timeIncrement: 60 * 60 * 48 * 1000, // 1 day
         actors: {
             m: { name: 'manta', color: '#f01eff' },
             s: { name: 'silvertip ', color: '#ff8c00' },//dc3545
