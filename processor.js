@@ -15,8 +15,8 @@ const processAllData = async () => {
     let meta = {
         startTime: 0,
         endTime: 0,
-        dayRange: 0,
-        timeIncrement: 60 * 60 * 48 * 1000, // 1 day
+        range: 0,
+        timeIncrement: 60 * 60 * 48 * 1000, // 2 days
         actors: {
             m: { name: 'manta', color: '#f01eff' },
             s: { name: 'silvertip ', color: '#ff8c00' },//dc3545
@@ -103,14 +103,14 @@ const processAllData = async () => {
     // Determine meta data
     meta.startTime = moment(actors[0].time).startOf('day').unix() * 1000;
     meta.endTime = moment(actors[actors.length - 1].time).endOf('day').unix() * 1000;
-    meta.dayRange = moment(meta.endTime).diff(moment(meta.startTime), 'days');
+    meta.range = Math.ceil((actors[actors.length - 1].time - actors[0].time) / meta.timeIncrement);
 
     console.log(`Start date: ${moment(meta.startTime)}`);
     console.log(`End date: ${moment(meta.endTime)}`);
-    console.log(`Day range: ${meta.dayRange}`);
+    console.log(`Range: ${meta.range}`);
 
     // Fill timeline to desired size
-    for (let i = 0; i <= meta.dayRange; i++) {
+    for (let i = 0; i <= meta.range; i++) {
         timeline.push({});
     }
 
@@ -119,7 +119,7 @@ const processAllData = async () => {
     // Map animal tracking samples into timeline
     actors.forEach(actor => {
         const actorKey = `${actor.type}_${actor.id}`;
-        const index = moment(actor.time).diff(moment(meta.startTime), 'days');
+        const index = Math.floor((actor.time - meta.startTime) / meta.timeIncrement);
 
         if (!timeline[index].hasOwnProperty(actorKey)) {
             timeline[index][actorKey] = [];

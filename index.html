@@ -142,7 +142,7 @@
         
         // Initialize slider
         slider.setAttribute('min', currentIndex);
-        slider.setAttribute('max', bertarelli.meta.dayRange);
+        slider.setAttribute('max', bertarelli.meta.range);
         slider.setAttribute('step', 1);
         
         slider.addEventListener('change', function(e) {
@@ -293,7 +293,7 @@
             // Increment index
             currentIndex++;
             
-            if (playTimeline && currentIndex <= bertarelli.meta.dayRange) {
+            if (playTimeline && currentIndex <= bertarelli.meta.range) {
                 timelineTimeout = setTimeout(() => {
                     timeline();
                 }, timelineTimeoutLength);
